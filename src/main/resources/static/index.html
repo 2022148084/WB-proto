@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WritingBoard Auth & WS Test</title>
+    <meta charset="UTF-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        .section { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 8px; }
+        input { margin: 5px 0; padding: 8px; width: 200px; display: block; }
+        button { padding: 8px 15px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+        button:disabled { background: #ccc; }
+        #log { background: #f4f4f4; padding: 10px; height: 200px; overflow-y: scroll; font-family: monospace; font-size: 12px; border: 1px solid #ddd; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+
+<h2>WritingBoard 통합 테스트</h2>
+
+<div class="section">
+    <h3>1. 인증 (Auth)</h3>
+    <input type="text" id="loginId" placeholder="아이디" value="test123">
+    <input type="password" id="password" placeholder="비밀번호" value="password123">
+    <input type="text" id="nickname" placeholder="닉네임" value="개발자">
+    <button onclick="join()">회원가입</button>
+    <button onclick="login()">로그인 (토큰 받기)</button>
+    <p>현 토큰: <span id="tokenStatus" class="error">없음</span></p>
+</div>
+
+<div class="section">
+    <h3>2. 웹소켓 연결 (WebSocket)</h3>
+    <button id="connectBtn" onclick="connectWS()" disabled>웹소켓 연결</button>
+    <button onclick="disconnect()" id="disconnectBtn" disabled>연결 해제</button>
+    <p>상태: <span id="wsStatus" class="error">연결 안됨</span></p>
+</div>
+
+<div class="section">
+    <h3>콘솔 로그</h3>
+    <div id="log"></div>
+</div>
+
+<script>
+    let accessToken = null;
+    let stompClient = null;
+
+    function addLog(msg, isError = false) {
+        const logDiv = document.getElementById('log');
+        const p = document.createElement('p');
+        p.className = isError ? 'error' : '';
+        p.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        logDiv.appendChild(p);
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    // 1. 회원가입
+    async function join() {
+        const data = {
+            loginId: document.getElementById('loginId').value,
+            password: document.getElementById('password').value,
+            nickname: document.getElementById('nickname').value
+        };
+        try {
+            const res = await fetch('/api/members/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const text = await res.text();
+            addLog("회원가입 결과: " + text);
+        } catch (e) { addLog("회원가입 실패: " + e, true); }
+    }
+
+    // 2. 로그인
+    async function login() {
+        const data = {
+            loginId: document.getElementById('loginId').value,
+            password: document.getElementById('password').value
+        };
+        try {
+            const res = await fetch('/api/members/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.token) {
+                accessToken = result.token;
+                document.getElementById('tokenStatus').textContent = "획득 완료 (보안상 앞자리만: " + accessToken.substring(0, 15) + "...)";
+                document.getElementById('tokenStatus').className = "success";
+                document.getElementById('connectBtn').disabled = false;
+                addLog("로그인 성공! 토큰을 획득했습니다.");
+            }
+        } catch (e) { addLog("로그인 실패: " + e, true); }
+    }
+
+    // 3. 웹소켓 연결 (JWT 포함)
+    function connectWS() {
+        const socket = new SockJS('/ws-stomp');
+        stompClient = Stomp.over(socket);
+
+        // 중요: 연결 헤더에 JWT 담기
+        const headers = {
+            'Authorization': 'Bearer ' + accessToken
+        };
+
+        stompClient.connect(headers, function (frame) {
+            addLog("웹소켓 연결 성공: " + frame);
+            document.getElementById('wsStatus').textContent = "연결됨";
+            document.getElementById('wsStatus').className = "success";
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('disconnectBtn').disabled = false;
+        }, function (error) {
+            addLog("웹소켓 인증 실패 또는 연결 오류: " + error, true);
+        });
+    }
+
+    function disconnect() {
+        if (stompClient !== null) stompClient.disconnect();
+        document.getElementById('wsStatus').textContent = "연결 안됨";
+        document.getElementById('wsStatus').className = "error";
+        document.getElementById('connectBtn').disabled = false;
+        document.getElementById('disconnectBtn').disabled = true;
+        addLog("웹소켓 연결 해제");
+    }
+</script>
+</body>
+</html>
