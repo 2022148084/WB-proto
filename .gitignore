@@ -39,3 +39,6 @@ out/
 
 
 src/main/resources/application.yml
+
+/db_data
+/docker-compose.yml
