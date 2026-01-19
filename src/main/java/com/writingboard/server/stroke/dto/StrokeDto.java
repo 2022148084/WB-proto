@@ -15,5 +15,6 @@ public class StrokeDto {
     private double y;        // Y 좌표
     private String color;    // 펜 색상 (예: "#ff0000")
     private double lineWidth; // 펜 굵기
-    private String sender;   // 그리는 사람 (서버에서 채워줄 값)
+    private String sender; // 그리는 사람 (서버에서 채워줄 값)
+    private String strokeId;
 }

@@ -12,6 +12,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -20,7 +25,6 @@ public class SecurityConfig {
 
     private final JwtProvider jwtProvider;
 
-    // 비밀번호 암호화 기계 등록 (필수)
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -29,23 +33,47 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable()) // API 서버라 CSRF 필요 없음
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 안 씀 (JWT니까)
+                // 1. CORS 설정 (아래 메서드 적용)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // 1. 문 열어줄 곳 (회원가입, 로그인, 웹소켓 연결, html, js 등)
                         .requestMatchers(
                                 "/api/members/join",
                                 "/api/members/login",
-                                "/ws/**",
                                 "/ws-stomp/**",
-                                "/", "/*.html", "/*.js", "/*.css" // 테스트용 정적 파일
+                                "/", "/*.html", "/*.js", "/*.css",
+                                // ▼ [추가] Swagger 관련 경로 허용 (이거 없으면 스웨거 403 뜸)
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
                         ).permitAll()
-                        // 2. 나머지는 다 인증 필요
                         .anyRequest().authenticated()
                 )
-                // 3. JWT 필터 끼워넣기
                 .addFilterBefore(new JwtFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    // 2. CORS 구체적 설정 (수정됨)
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+
+        // ★ [수정] 와일드카드(*) 제거하고 정확한 도메인 명시
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:5173",          // 내 컴퓨터 개발용
+                "https://poc.hsh-server.com"      // 클플에 배포된 프론트 주소
+        ));
+
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
+
+        // 쿠키나 인증 헤더를 보내려면 true여야 함 (이때 *를 쓰면 안 됨)
+        config.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 }

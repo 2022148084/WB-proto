@@ -8,8 +8,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class SignalMessage {
-    private String type;   // "OFFER", "ANSWER", "ICE", "TEXT" (테스트용)
-    private String roomId; // 방 번호
-    private String sender; // 보낸 사람
-    private Object data;   // SDP 정보 or ICE Candidate or 채팅메시지
+    private String type;     // "OFFER", "ANSWER", "ICE", "JOIN"
+    private String roomId;   // 방 번호
+    private String sender;   // 보낸 사람
+    private String receiver; // ★ [필수] 받는 사람 (이게 있어야 1:1 매칭됨)
+    private Object data;     // SDP 또는 ICE 정보
 }
